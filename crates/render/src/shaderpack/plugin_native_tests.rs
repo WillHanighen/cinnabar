@@ -3,7 +3,7 @@
 use super::*;
 use bevy::ecs::system::RunSystemOnce;
 
-/// Builds an empty, ready terrain pack without native actor kernels or game carriers.
+/// Builds an empty, ready pack with compiled actor kernels and no game carriers.
 pub(super) fn ready_world() -> World {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::NOOP,
@@ -60,12 +60,35 @@ pub(super) fn ready_world() -> World {
     views.states.get_mut().unwrap().insert(entity, state);
     world.insert_resource(views);
     world.insert_resource(LoadedShaderPack(Some(pack)));
-    let geometry = ShaderpackGeometry::ready_fixture(&RenderDevice::from(gpu.device));
+    let device = RenderDevice::from(gpu.device);
+    let geometry = ShaderpackGeometry::ready_fixture(&device);
     assert!(geometry.supported() && geometry.all_sections_fit() && geometry.origin().is_some());
     world.insert_resource(geometry);
     world.init_resource::<ShaderPackEffects>();
     world.init_resource::<ShaderPackDrawnCategories>();
+    prepare_actor_kernels(&mut world, &device);
     world
+}
+
+/// Compiles the real skinning kernels so each transient test starts from native world readiness.
+fn prepare_actor_kernels(world: &mut World, device: &RenderDevice) {
+    bevy::tasks::AsyncComputeTaskPool::get_or_init(bevy::tasks::TaskPool::default);
+    let mut app = App::new();
+    app.init_resource::<Assets<Shader>>();
+    actors::load_shaders(&mut app);
+    let mut cache = PipelineCache::new(device.clone(), true);
+    for (id, shader) in app.world().resource::<Assets<Shader>>().iter() {
+        cache.set_shader(id, shader.clone());
+    }
+    world.insert_resource(cache);
+    world.init_resource::<ActorSkinPipelines>();
+    test_time::eventually("shader-pack actor fixture kernels", || {
+        world.resource_mut::<PipelineCache>().process_queue();
+        world
+            .resource::<ActorSkinPipelines>()
+            .kernels(world.resource::<PipelineCache>())
+            .is_some()
+    });
 }
 
 /// Runs the production queue decision and checks every replacement category.
@@ -84,7 +107,9 @@ pub(super) fn assert_replacement(world: &mut World) {
 
 #[test]
 fn pending_actor_kernels_leave_pack_categories_drawn() {
-    assert_replacement(&mut ready_world());
+    let mut world = ready_world();
+    world.remove_resource::<ActorSkinPipelines>();
+    assert_replacement(&mut world);
 }
 
 #[test]

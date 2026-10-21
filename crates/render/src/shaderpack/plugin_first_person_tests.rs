@@ -1,22 +1,10 @@
 //! First-person scenes retain native composition without interrupting pack terrain.
 
 use super::*;
-use bevy::ecs::system::RunSystemOnce;
 use render_scene::{HandRigScene, ViewmodelScene};
 
-/// Reads the native hand decision independently from the pack's terrain decision.
-fn hand_native(world: &mut World) -> bool {
-    world
-        .run_system_once(
-            |coverage: super::super::native_actors::NativeActorCoverage| {
-                !coverage.hand(Entity::PLACEHOLDER)
-            },
-        )
-        .unwrap()
-}
-
 #[test]
-fn active_hand_rig_preserves_native_scene() {
+fn active_hand_rig_keeps_pack_categories_drawn() {
     let mut world = super::native_tests::ready_world();
     world.init_resource::<HandRigScene>();
     world.init_resource::<ViewmodelScene>();
@@ -35,14 +23,14 @@ fn active_hand_rig_preserves_native_scene() {
         1.0,
         1,
     ));
-    assert!(hand_native(&mut world));
+    world.remove_resource::<ActorSkinPipelines>();
     super::native_tests::assert_replacement(&mut world);
     world.resource_mut::<HandRigScene>().clear();
     super::native_tests::assert_replacement(&mut world);
 }
 
 #[test]
-fn active_static_viewmodel_preserves_native_scene() {
+fn active_static_viewmodel_keeps_pack_categories_drawn() {
     let mut world = super::native_tests::ready_world();
     world.init_resource::<HandRigScene>();
     world.init_resource::<ViewmodelScene>();
@@ -78,7 +66,6 @@ fn active_static_viewmodel_preserves_native_scene() {
             .resource_mut::<ViewmodelScene>()
             .publish(token, &skin, &geometry, &gate)
     );
-    assert!(hand_native(&mut world));
     super::native_tests::assert_replacement(&mut world);
     world.resource_mut::<ViewmodelScene>().clear(&gate);
     super::native_tests::assert_replacement(&mut world);

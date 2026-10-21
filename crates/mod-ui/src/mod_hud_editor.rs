@@ -39,7 +39,12 @@ use ui_engine::{
 
 const SCREEN: &str = "cinnabar_hud_editor.layout";
 const GUIDE_WIDTH: f64 = 0.75;
-const MEASUREMENT_PILL: [f64; 2] = [36., 12.];
+/// Distance pill height and horizontal text padding, in GUI pixels.
+const MEASUREMENT_PILL_HEIGHT: f64 = 9.;
+const MEASUREMENT_PILL_PADDING: f64 = 4.;
+/// Distance label font scale (about 3.5 px glyphs) and a digit advance that covers it.
+const MEASUREMENT_FONT_SCALE: f64 = 0.45;
+const MEASUREMENT_DIGIT_ADVANCE: f64 = 3.;
 const AXIS_SNAP_DISTANCE: f64 = 6.;
 const GEOMETRY_EPSILON: f64 = 0.001;
 const EDITOR_MARGIN: f64 = 8.;

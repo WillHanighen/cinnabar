@@ -122,8 +122,12 @@ fn tint_pipeline(device: &RenderDevice) -> wgpu::RenderPipeline {
 }
 
 #[test]
+#[allow(clippy::print_stderr, reason = "names the missing native GPU fixture")]
 fn native_transparency_preserves_pack_colour_through_final() {
     let Some(renderer) = raster::renderer() else {
+        eprintln!(
+            "skipping native_transparency_preserves_pack_colour_through_final: missing native GPU fixture"
+        );
         return;
     };
     let (mut app, camera, output) = raster::app_with_effects(renderer, |app| {

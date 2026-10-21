@@ -18,7 +18,10 @@ pub(super) fn ready_world() -> World {
     });
     let adapter = bevy::tasks::block_on(instance.request_adapter(&default())).unwrap();
     let (device, queue) = bevy::tasks::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-        required_limits: adapter.limits(),
+        required_limits: wgpu::Limits {
+            max_storage_buffers_per_shader_stage: crate::required_vertex_storage_buffers(),
+            ..default()
+        },
         ..default()
     }))
     .unwrap();

@@ -174,7 +174,7 @@ fn off_screen_near_actors_do_not_consume_the_tag_or_record_budgets() {
                     view,
                     None,
                     stream.authority().actor_name_tag(actor.unique_id)?,
-                    Some(&boards),
+                    &boards,
                     1.0,
                 )
             })

@@ -74,6 +74,7 @@ impl UiPresentationRuntime {
 
     /// Supplies the world-query adapter's projected nametag anchors for this frame.
     pub fn set_nametag_anchors(&mut self, anchors: Vec<nametags::NametagAnchor>) {
+        self.nametag_bounds.finish_frame();
         if tracing::enabled!(tracing::Level::DEBUG) {
             let badges = anchors.iter().filter(|tag| tag.cinnabar_badge).count();
             let previous = self
@@ -133,6 +134,7 @@ impl UiPresentationRuntime {
     pub fn prepare_nametag_layout(&mut self, runtime: &UiRuntime) {
         dynamic_textures::observe_session(self, runtime.session_id());
         session_glyphs::observe(self, runtime.session_glyphs());
+        self.nametag_bounds.begin_frame();
     }
 
     /// Tests painted label bounds without changing actor eligibility or depth policy.
@@ -147,7 +149,7 @@ impl UiPresentationRuntime {
             .mod_ui
             .mod_actor_style()
             .and_then(|style| style.nametags.as_ref());
-        nametags::bounds::intersects_view(
+        self.nametag_bounds.intersects_view(
             anchor,
             clip_from_world,
             rotation,

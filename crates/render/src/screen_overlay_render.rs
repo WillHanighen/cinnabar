@@ -547,6 +547,7 @@ fn queue_overlay(
         &ExtractedView,
         &bevy::render::camera::ExtractedCamera,
         &Msaa,
+        Has<render_scene::shaderpack::ShaderPackRendering>,
     )>,
 ) {
     gpu.view_pipelines.clear();
@@ -554,7 +555,7 @@ fn queue_overlay(
         return;
     }
     let draw_function = draw_functions.read().id::<DrawOverlayCommands>();
-    for (view_entity, main_entity, view, extracted_camera, msaa) in &views {
+    for (view_entity, main_entity, view, extracted_camera, msaa, pack_view) in &views {
         let Some(phase) = phases.get_mut(&view.retained_view_entity) else {
             continue;
         };
@@ -563,12 +564,12 @@ fn queue_overlay(
             OverlayPipelineKey {
                 msaa: *msaa,
                 hdr: extracted_camera.hdr,
-                after_hand: ui.is_some(),
+                after_hand: ui.is_some() || (cfg!(feature = "shaderpacks") && pack_view),
             },
         ) else {
             continue;
         };
-        if ui.is_some() {
+        if ui.is_some() || (cfg!(feature = "shaderpacks") && pack_view) {
             gpu.view_pipelines.insert(view_entity, pipeline_id);
             continue;
         }

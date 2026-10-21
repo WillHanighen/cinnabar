@@ -510,10 +510,10 @@ launches. Native Windows startup, update and crash-restart acceptance remains in
   Bedrock→Java mappings. Settings offers pack import, a reload key, load status and a Shader
   Pack Settings screen. Incomplete: in-game acceptance across packs and platforms (Metal is
   unverified); stage pre-flips (`flip.<stage>_pre.<buffer>`) and Iris's explicit-flip
-  ordering; drawing the solid hand's glint before deferred passes; geometry-host composition
-  of celestial layers, effects without depth writes and private-depth first-person scenes,
-  which keep the native scene copy; actor colour masks, multitexture materials, dissolve
-  pairs, beacon beams and additive rays, which keep native composition; autofocus on cutout
+  ordering; drawing the solid hand's glint before deferred passes; pack replacements
+  for uncovered celestial layers (the pack sky stands), actor colour masks, multitexture
+  materials, dissolve pairs, beacon beams and additive rays (these retain native
+  composition over the pack); autofocus on cutout
   pixels, liquids and entities; complete Iris type checking and target-dependent return
   overloads; constant folding for half-float packing and bit casts. Java sky and fog time
   curves and sunrise colours remain provisional.

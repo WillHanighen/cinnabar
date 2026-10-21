@@ -55,7 +55,7 @@ pub(super) fn configure_graph(world: &mut World, enabled: bool) {
                             .in_set(MotionBlurLabel)
                             .before(crate::depth_smaa::DepthSmaaLabel),
                         crate::gpu_timing::profiled(
-                            crate::chunk::transparent::gamma_pass::gamma_transparent::<true>,
+                            crate::chunk::transparent::gamma_pass::gamma_transparent::<true, false>,
                             None,
                             "SharpNametagsLabel",
                         )

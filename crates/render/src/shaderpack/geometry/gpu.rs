@@ -230,6 +230,28 @@ impl ShaderpackGeometry {
 }
 
 impl ShaderpackGeometry {
+    /// Creates ready, empty terrain for render-host tests without chunk carriers.
+    #[cfg(test)]
+    pub(crate) fn ready_fixture(device: &RenderDevice) -> Self {
+        let mut geometry = Self::new(device, Some(false));
+        geometry.residency.follow_camera(DVec3::ZERO);
+        geometry.inputs = Some(ExpansionInputs {
+            materials: BufferId::new(),
+            model_templates: BufferId::new(),
+            biome_tints: BufferId::new(),
+            biome_tint_table: ChunkBiomeTintIdentity::new(0, 0),
+            atlas_generation: 0,
+            attribute_key: AttributeKey {
+                assets: 0,
+                revision: 0,
+                block_ids: None,
+            },
+            separate_ao: false,
+            old_lighting: false,
+        });
+        geometry
+    }
+
     /// Whether this device can expand and draw terrain for packs at all.
     pub fn supported(&self) -> bool {
         self.supported
@@ -254,14 +276,8 @@ impl ShaderpackGeometry {
             .map(|origin| (origin.as_dvec3() - camera).as_vec3())
     }
 
-    /// Eye distance within which every section the camera may see is expanded, or `None`
-    /// when nothing waits. Beyond it terrain may be missing from the pack's geometry.
-    pub fn complete_radius(&self) -> Option<f32> {
-        self.complete_radius
-    }
-
     /// Eye distance past which the vertex budget leaves terrain undrawn, `None` while every
-    /// section fits. Unlike [`Self::complete_radius`] it ignores sections merely queued for
+    /// section fits. It ignores sections merely queued for
     /// this frame's expansion, so it holds steady while terrain streams in.
     pub fn budget_horizon(&self) -> Option<f32> {
         self.budget_horizon

@@ -307,7 +307,6 @@ fn render_frame_options(
         scene_colour: &scene.create_view(&Default::default()),
         scene_depth: &depth.create_view(&Default::default()),
         scene_near: 0.1,
-        inverse_focal: [1.0, 1.0],
         render_distance: game.render_distance,
         fog_color: super::uniforms::sky_fog(&game, Quat::IDENTITY, Vec3::new(0.0, 64.0, 0.0)).fog,
         destination: &output.create_view(&Default::default()),
@@ -345,7 +344,6 @@ fn render_frame_options(
                 camera_y: 64.,
                 sunrise: false,
             },
-            overlay_radius: f32::MAX,
         }),
         timestamps: None,
     };

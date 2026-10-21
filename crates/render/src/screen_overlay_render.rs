@@ -6,7 +6,7 @@ use bevy::{
     asset::{load_internal_asset, uuid_handle},
     core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, Transparent3d},
     ecs::{
-        query::ROQueryItem,
+        query::{Has, ROQueryItem},
         system::{SystemParamItem, lifetimeless::SRes},
     },
     prelude::{

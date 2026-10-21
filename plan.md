@@ -513,7 +513,8 @@ launches. Native Windows startup, update and crash-restart acceptance remains in
   ordering; drawing the solid hand's glint before deferred passes; pack replacements
   for uncovered celestial layers (the pack sky stands), actor colour masks, multitexture
   materials, dissolve pairs, beacon beams and additive rays (these retain native
-  composition over the pack); autofocus on cutout
+  composition over the pack); native layers behind pack-rendered glass or water, whose
+  final depth can hide those layers; autofocus on cutout
   pixels, liquids and entities; complete Iris type checking and target-dependent return
   overloads; constant folding for half-float packing and bit casts. Java sky and fog time
   curves and sunrise colours remain provisional.

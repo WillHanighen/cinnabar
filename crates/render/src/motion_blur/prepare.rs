@@ -25,7 +25,7 @@ pub(super) struct ActorResources<'w> {
 }
 
 #[derive(Component)]
-pub(super) struct BlurView {
+pub(crate) struct BlurView {
     history: CameraHistory,
     uniform: Buffer,
     last_uniform: Option<ExposureUniform>,

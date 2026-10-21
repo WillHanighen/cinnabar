@@ -16,6 +16,8 @@ pub(super) fn install(schedule: &mut bevy::ecs::schedule::Schedule) {
             begin,
             crate::scene_target::nodes::scene_opaque::<true>,
             crate::chunk::transparent::gamma_pass::gamma_transparent::<false, true>,
+            crate::motion_blur::graph::motion_blur::<true>,
+            crate::depth_smaa::node::depth_smaa::<true>,
             crate::ui_render::overlay::world::ui_world::<true>,
             crate::viewmodel_render::node::hand_view::<true>,
             crate::hand_rig_render::node::hand_rig::<true>,

@@ -113,6 +113,7 @@ mod tests {
 #[cfg(test)]
 mod replacement_tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn unsupported_actor_material_leaves_only_its_span_native() {

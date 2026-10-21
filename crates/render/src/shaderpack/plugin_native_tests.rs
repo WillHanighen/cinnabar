@@ -30,15 +30,13 @@ pub(super) fn ready_world() -> World {
         queue,
         adapter,
     };
+    let vertex = "#version 120\nvoid main() { gl_Position = ftransform(); }";
+    let fragment = "#version 120\nvoid main() { gl_FragColor = vec4(0.25); }";
     let source = shaderpack::ShaderPack::new(shaderpack::PackSource::from_files([
-        (
-            "gbuffers_terrain.vsh",
-            "#version 120\nvoid main() { gl_Position = ftransform(); }",
-        ),
-        (
-            "gbuffers_terrain.fsh",
-            "#version 120\nvoid main() { gl_FragColor = vec4(0.25); }",
-        ),
+        ("gbuffers_basic.vsh", vertex),
+        ("gbuffers_basic.fsh", fragment),
+        ("gbuffers_terrain.vsh", vertex),
+        ("gbuffers_terrain.fsh", fragment),
     ]));
     let pack = Arc::new(
         super::super::loader::build(
@@ -53,6 +51,7 @@ pub(super) fn ready_world() -> World {
         )
         .unwrap(),
     );
+    assert!(!pack.draws.is_empty(), "fixture must supply world programs");
     let state = ViewState::new(&gpu.device, Arc::clone(&pack), [4, 4]).unwrap();
     assert!(state.geometry_targets_ready());
     let mut world = World::new();

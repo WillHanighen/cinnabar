@@ -124,3 +124,20 @@ fn changing_the_option_file_starts_a_new_load() {
     request.options = Some(PathBuf::from("Outer.txt"));
     assert_ne!(loader_key(&request, 0), command_line);
 }
+
+#[test]
+fn nametag_records_do_not_require_native_scene_colour() {
+    use bevy::ecs::system::SystemState;
+    let mut world = World::new();
+    world.init_resource::<render_scene::NametagSceneResource>();
+    let mut layers = SystemState::<NativeSceneLayers>::new(&mut world);
+    assert!(!layers.get(&world).unwrap().uncovered_layers(|_| false));
+    world
+        .resource_mut::<render_scene::NametagSceneResource>()
+        .records
+        .push(render_model::NametagRecord::default());
+    assert!(
+        !layers.get(&world).unwrap().uncovered_layers(|_| false),
+        "names compose independently of shader-pack world replacement"
+    );
+}

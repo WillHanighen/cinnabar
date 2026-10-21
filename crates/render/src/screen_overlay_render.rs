@@ -534,6 +534,16 @@ fn prepare_bind_group(
     ));
 }
 
+/// Camera settings and pack membership used to place screen effects after the hand.
+type OverlayQueueView = (
+    Entity,
+    &'static MainEntity,
+    &'static ExtractedView,
+    &'static bevy::render::camera::ExtractedCamera,
+    &'static Msaa,
+    Has<render_scene::shaderpack::ShaderPackRendering>,
+);
+
 fn queue_overlay(
     pipeline_cache: Res<PipelineCache>,
     mut pipeline: ResMut<OverlayPipeline>,
@@ -541,14 +551,7 @@ fn queue_overlay(
     (ui, mut gpu): (Option<Res<crate::ui_render::UiGpu>>, ResMut<OverlayGpu>),
     mut phases: ResMut<ViewSortedRenderPhases<Transparent3d>>,
     draw_functions: Res<DrawFunctions<Transparent3d>>,
-    views: Query<(
-        Entity,
-        &MainEntity,
-        &ExtractedView,
-        &bevy::render::camera::ExtractedCamera,
-        &Msaa,
-        Has<render_scene::shaderpack::ShaderPackRendering>,
-    )>,
+    views: Query<OverlayQueueView>,
 ) {
     gpu.view_pipelines.clear();
     if scene.layers.is_empty() {

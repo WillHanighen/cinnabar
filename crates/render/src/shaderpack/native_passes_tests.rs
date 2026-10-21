@@ -154,15 +154,15 @@ fn fixture(name: &str, diagonal: bool) -> Option<(App, Entity, Handle<Image>)> {
                 queue_tint.in_set(RenderSystems::Queue),
             ),
         );
-        let world = app.sub_app_mut(RenderApp).world_mut();
-        let device = world.resource::<RenderDevice>().clone();
-        world.insert_resource(Tint(tint_pipeline(&device, diagonal)));
-        world.insert_resource(raster::FixturePipelines {
-            checker: raster::fixture_pipeline(&device, 1, "checker"),
-            sloped_checker: raster::fixture_pipeline(&device, 1, "sloped_checker"),
-            silhouette: raster::fixture_pipeline(&device, 1, "silhouette"),
-            scene: 0,
-        });
+    });
+    let world = app.sub_app_mut(RenderApp).world_mut();
+    let device = world.resource::<RenderDevice>().clone();
+    world.insert_resource(Tint(tint_pipeline(&device, diagonal)));
+    world.insert_resource(raster::FixturePipelines {
+        checker: raster::fixture_pipeline(&device, 1, "checker"),
+        sloped_checker: raster::fixture_pipeline(&device, 1, "sloped_checker"),
+        silhouette: raster::fixture_pipeline(&device, 1, "silhouette"),
+        scene: 0,
     });
     app.world_mut()
         .resource_mut::<Assets<Image>>()
@@ -212,6 +212,17 @@ fn fixture(name: &str, diagonal: bool) -> Option<(App, Entity, Handle<Image>)> {
             blend: Arc::from([particles::ParticleInstance::default()]),
             ..default()
         });
+    test_time::eventually("shader-pack fixture view targets", || {
+        raster::frame(&mut app);
+        app.sub_app(RenderApp)
+            .world()
+            .resource::<super::super::plugin::ShaderPackViews>()
+            .states
+            .lock()
+            .unwrap()
+            .values()
+            .any(|state| state.geometry_targets_ready())
+    });
     Some((app, camera, output))
 }
 
@@ -235,7 +246,7 @@ fn native_transparency_preserves_pack_colour_through_final() {
         )
         .unwrap();
     }
-    for pixel in pixels.chunks_exact(4) {
+    for pixel in pixels.as_chunks::<4>().0.iter() {
         assert!(
             (i16::from(pixel[0]) - 188).abs() <= 1
                 && pixel[1] == 0
@@ -252,6 +263,13 @@ fn native_world_layers_receive_spatial_antialiasing() {
     else {
         return;
     };
+    assert!(
+        app.sub_app(RenderApp)
+            .world()
+            .resource::<render_scene::shaderpack::ShaderPackDrawnCategories>()
+            .terrain,
+        "fixture must replace terrain"
+    );
     raster::frame(&mut app);
     let before = raster::read_pixels(&app, &output);
     app.world_mut()
@@ -265,7 +283,9 @@ fn native_world_layers_receive_spatial_antialiasing() {
     );
     assert!(
         after
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .any(|pixel| (5..180).contains(&pixel[0])),
         "native edge needs intermediate coverage"
     );
@@ -286,6 +306,13 @@ fn native_world_layers_receive_camera_motion_blur() {
             reset_epoch: 1,
             delta_seconds: 1.0 / 60.0,
         });
+    assert!(
+        app.sub_app(RenderApp)
+            .world()
+            .resource::<render_scene::shaderpack::ShaderPackDrawnCategories>()
+            .terrain,
+        "fixture must replace terrain"
+    );
     raster::frame(&mut app);
     raster::frame(&mut app);
     let before = raster::read_pixels(&app, &output);

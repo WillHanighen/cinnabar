@@ -185,7 +185,7 @@ fn pack_final_replaces_only_its_camera_viewport() {
         false,
         true,
     );
-    for (index, pixel) in bytes.chunks_exact(4).enumerate() {
+    for (index, pixel) in bytes.as_chunks::<4>().0.iter().enumerate() {
         let (x, y) = (index % SIZE[0] as usize, index / SIZE[0] as usize);
         let expected = if y < 2 && (1..3).contains(&x) {
             [0, 0, 255]

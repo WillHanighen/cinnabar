@@ -35,8 +35,8 @@ pub(crate) struct BlurView {
     pub footprint_pipeline: CachedRenderPipelineId,
     pub row_pipeline: CachedRenderPipelineId,
     pub resolve_pipeline: CachedRenderPipelineId,
-    pub resolved: Option<super::resolve::ResolvedInputs>,
-    pub footprint: Option<super::footprint::Footprint>,
+    pub(super) resolved: Option<super::resolve::ResolvedInputs>,
+    pub(super) footprint: Option<super::footprint::Footprint>,
     pub active: bool,
 }
 

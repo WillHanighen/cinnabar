@@ -318,6 +318,7 @@ fn render_frame_options(
             effect_textures: None,
             actors: super::actors::ActorSources::default(),
             effects: super::effects::EffectInputs {
+                coverage: Default::default(),
                 camera: super::effects::EffectCamera {
                     position: Vec3::new(0., 64., 0.),
                     model_view: bevy::math::Mat4::IDENTITY,

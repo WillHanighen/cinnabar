@@ -636,6 +636,10 @@ fn shaderpack_post(
     let (_, rotation, position) = view.world_from_view.to_scale_rotation_translation();
     let colours = super::uniforms::sky_fog(&inputs, rotation, position);
     let effects = EffectInputs {
+        coverage: world
+            .get_resource::<ShaderPackEffects>()
+            .copied()
+            .unwrap_or_default(),
         camera: EffectCamera {
             position: view.world_from_view.translation(),
             model_view: Mat4::from_quat(view.world_from_view.rotation().inverse()),

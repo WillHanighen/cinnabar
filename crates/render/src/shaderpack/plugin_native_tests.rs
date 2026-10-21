@@ -67,6 +67,8 @@ pub(super) fn ready_world() -> World {
     world.init_resource::<ShaderPackEffects>();
     world.init_resource::<ShaderPackDrawnCategories>();
     prepare_actor_kernels(&mut world, &device);
+    world.insert_resource(device);
+    world.insert_resource(RenderQueue::new(gpu.queue));
     world
 }
 
@@ -125,6 +127,93 @@ fn uncovered_particles_leave_pack_categories_drawn() {
         }
         world.insert_resource(frame);
         assert_replacement(&mut world);
+    }
+}
+
+#[test]
+fn particle_activation_uses_one_render_path_per_blend_mode() {
+    let mut world = ready_world();
+    world.init_resource::<ShaderpackEffectTextures>();
+    let instances = Arc::from([particles::ParticleInstance {
+        center_light: [0.0, 0.0, -1.0, 0.0],
+        axis_x: [0.5, 0.0, 0.0, 0.0],
+        axis_y: [0.0, 0.5, 0.0, 0.0],
+        color: [1.0; 4],
+        uv: [0.0, 0.0, 1.0, 1.0],
+        ..default()
+    }]);
+    world.insert_resource(render_scene::ParticleGpuFrame {
+        atlas_side: 1,
+        opaque: Arc::clone(&instances),
+        blend: Arc::clone(&instances),
+        add: instances,
+        ..default()
+    });
+    let view = world
+        .query_filtered::<Entity, With<ShaderPackRendering>>()
+        .single(&world)
+        .unwrap();
+    let modes = [
+        Effect::Particles,
+        Effect::ParticlesTranslucent,
+        Effect::ParticlesAdditive,
+    ];
+    for pack_ready in [false, true] {
+        world.run_system_once(configure_replacement).unwrap();
+        let native = world
+            .run_system_once(
+                move |pack: render_scene::shaderpack::ShaderPackDrawnEffects| {
+                    [
+                        !pack.replaces(view, |drawn| drawn.particles_opaque),
+                        !pack.replaces(view, |drawn| drawn.particles_translucent),
+                        !pack.replaces(view, |drawn| drawn.particles_additive),
+                    ]
+                },
+            )
+            .unwrap();
+        world.run_system_once(prepare_effect_textures).unwrap();
+        let textures = world.resource::<ShaderpackEffectTextures>();
+        assert!(
+            modes
+                .into_iter()
+                .all(|effect| textures.views(effect).is_some())
+        );
+        let inputs = EffectInputs {
+            coverage: *world.resource::<ShaderPackEffects>(),
+            camera: EffectCamera {
+                position: Vec3::ZERO,
+                model_view: Mat4::IDENTITY,
+                focal: [1.0; 2],
+                screen: [4; 2],
+            },
+            frame: default(),
+            atmosphere: None,
+            atmosphere_view: None,
+            atmosphere_textures: None,
+            clouds_visible: false,
+            particles: Some(world.resource::<render_scene::ParticleGpuFrame>()),
+            precipitation: None,
+            lightning: None,
+            selection: None,
+            block_entities: None,
+            seconds: 0.0,
+        };
+        let mut buffers = super::super::effects::EffectBuffers::default();
+        super::super::effects::prepare_effects(
+            world.resource::<RenderDevice>().wgpu_device(),
+            world.resource::<RenderQueue>(),
+            world.resource::<LoadedShaderPack>().0.as_ref().unwrap(),
+            &mut buffers,
+            &inputs,
+        );
+        for (effect, native) in modes.into_iter().zip(native) {
+            let pack = buffers.range(effect).is_some();
+            assert!(
+                !(native && pack),
+                "{effect:?} must not use both native and pack paths"
+            );
+            assert_eq!((native, pack), (!pack_ready, pack_ready), "{effect:?}");
+        }
     }
 }
 

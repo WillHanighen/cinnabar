@@ -163,7 +163,7 @@ struct WorldOutput { @location(0) colour: vec4<f32>, @builtin(frag_depth) depth:
                 .in_set(crate::mod_render::ModPassLabel)
                 .after(Core3dSystems::PostProcess),
             halo_grade
-                .in_set(crate::mod_render::ModCompositionLabel)
+                .in_set(crate::mod_render::composition::ModCompositionLabel)
                 .after(Core3dSystems::PostProcess)
                 .after(crate::mod_render::ModPassLabel),
         ));

@@ -232,7 +232,7 @@ qualification remain open.
 
 Pure numeric Molang expressions use bound f32 lane programs with load fusion;
 mixed values and effects retain the generic evaluator, including exact budget tails.
-Full rig history and rendered qualification remain part of `P4.3-RIGS`.
+Full rig history and rendered qualification remain part of the rig item below.
 Body and custom-skin composition use shared parent-first programs and caller-owned
 output, including attachable root modes and legacy attacks. Alternate render
 geometries and skin layers retain recursive composition. Rendered and live
@@ -251,9 +251,10 @@ performance qualification remains open.
   and matched inventory/held-item presentation. Shared cube face sheets are bounded coverage.
 
 Continuous cosmetic cloth uses shared vertices, fixed-step constraints, world-space
-inertia and player-body contacts with standard-armor clearance. Vertical follow and
-damping restrain jump and landing motion, and local cloth keeps advancing while
-first-person visibility hides the body. View changes transfer the drape between
+inertia and contacts derived from the drawn body and worn armor. Cloth pins and
+mounts retract toward the bare torso and expand to clear equipped chest geometry.
+Vertical follow and damping restrain jump and landing motion, and local cloth keeps
+advancing while first-person visibility hides the body. View changes transfer the drape between
 body pose spaces. Self-collision and world collision remain open.
 Paid cosmetic selections use session ownership from the API database and withdraw
 on disconnect or revocation; production rollout qualification remains open.
@@ -268,6 +269,12 @@ Name tag colours compose after Enhanced and shader-pack world effects with the s
 depth, and translucent plates use over-compositing for scene alpha. Coplanar shadows
 and glyphs share the anchor depth to avoid rounding speckle. Local cosmetic
 colour selection uses actor identity. In-world visual qualification remains open.
+Upright player name tags keep Java's standing height before pose offsets; swimming,
+crawling and gliding players use their live height. Other actors retain their published
+label height. Tag eligibility uses always-show metadata or the shared crosshair pick.
+Camera distance controls server render limits and score range; passenger mounts keep
+their name without a score line. Depth testing honors sneaking and the nameplate flag.
+Matched rendered-frame qualification remains open.
 
 Remaining qualification includes attachables and custom item models, action/use timing,
 projectile interpolation and shake, sleep/mount poses, name tags (including over
@@ -499,6 +506,8 @@ launches. Native Windows startup, update and crash-restart acceptance remains in
   hardware-performance acceptance still require validation.
 - Enhanced rendering remains restricted until its GPU faults and freezes are resolved.
   Diagnostics or bounded fixtures do not establish safe general gameplay use.
+  Its MSAA nametag composite blends against resolved scene colour, so labels partly
+  occluded by world silhouettes get a dark edge fringe; per-sample composition is incomplete.
 - Java shader packs (Iris/OptiFine format) run behind the off-by-default `shaderpacks`
   feature. `shaderpack` loads packs, parses `shaders.properties`, options, Iris option
   menus, profiles and option files, evaluates custom uniforms and translates programs to
@@ -515,6 +524,14 @@ launches. Native Windows startup, update and crash-restart acceptance remains in
   materials, dissolve pairs, beacon beams and additive rays (these retain native
   composition over the pack); native layers behind pack-rendered glass or water, whose
   final depth can hide those layers; autofocus on cutout
+  Bedrock→Java mappings. The Shaders settings tab offers pack import, reload, load status
+  and a Shader Pack Settings screen. Video links to Shaders and shows its renderer switch
+  only when Enhanced is available.
+  Incomplete: in-game acceptance across packs and platforms (Metal is unverified); stage pre-flips (`flip.<stage>_pre.<buffer>`) and Iris's explicit-flip
+  ordering; drawing the solid hand's glint before deferred passes; geometry-host composition
+  of celestial layers, effects without depth writes and private-depth first-person scenes,
+  which keep the native scene copy; actor colour masks, multitexture materials, dissolve
+  pairs, beacon beams and additive rays, which keep native composition; autofocus on cutout
   pixels, liquids and entities; complete Iris type checking and target-dependent return
   overloads; constant folding for half-float packing and bit casts. Java sky and fog time
   curves and sunrise colours remain provisional.

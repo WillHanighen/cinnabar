@@ -19,11 +19,11 @@ fn cached_bounds_refresh_font_and_text_but_project_live_pose_without_layout_work
     tag.lines = Arc::from([Arc::from("A")]);
     let mut metrics = *font.glyph('0').unwrap();
     metrics.codepoint = 'A';
-    metrics.advance_64 = 16 * 64;
+    metrics.advance_64 = 64 * 64;
     let wider = font.with_glyphs(
         &[assets::SheetGlyph {
             metrics,
-            draw_size_64: [16 * 64, 8 * 64],
+            draw_size_64: [64 * 64, 8 * 64],
         }],
         |_| true,
     );

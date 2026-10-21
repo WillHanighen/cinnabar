@@ -546,7 +546,7 @@ pub(crate) fn prepare_ui_runtime(
             .as_ref()
             .map(|stream| stream.authority().local_player_runtime_id()),
     );
-    presentation.set_nametag_anchors(nametags);
+    nametag_cache.recycle_anchors(presentation.set_nametag_anchors(nametags));
     presentation.set_chat_settings_snapshot(settings_snapshot);
     #[cfg(not(target_arch = "wasm32"))]
     let menu_view = menu_visible.then(|| {

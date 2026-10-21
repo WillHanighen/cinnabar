@@ -2,6 +2,17 @@
 
 use super::*;
 
+/// Counts the final records emitted for one plate or textured run.
+pub(super) fn record_cost(style: Option<&ui::mod_hud::NametagStyle>, plate: bool) -> usize {
+    1 + style.map_or(0, |style| {
+        if plate {
+            4 * usize::from(style.border_color.is_some())
+        } else {
+            usize::from(style.shadow)
+        }
+    })
+}
+
 /// Applies bounded cosmetic overrides without changing record order or depth selection.
 pub(in crate::ui_runtime::presentation) fn style_scene(
     scene: &mut NametagScene,
@@ -28,13 +39,7 @@ pub(in crate::ui_runtime::presentation) fn style_scene(
     for index in nearest {
         let cost: usize = original[labels[index].records.clone()]
             .iter()
-            .map(|record| {
-                1 + if record.uv[2] < 0.0 {
-                    4 * usize::from(style.border_color.is_some())
-                } else {
-                    usize::from(style.shadow)
-                }
-            })
+            .map(|record| record_cost(Some(style), record.uv[2] < 0.0))
             .sum();
         if cost <= available {
             admitted[index] = true;

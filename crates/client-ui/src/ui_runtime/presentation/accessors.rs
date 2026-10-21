@@ -72,8 +72,11 @@ impl UiPresentationRuntime {
         &mut self.hud_frame
     }
 
-    /// Supplies the world-query adapter's projected nametag anchors for this frame.
-    pub fn set_nametag_anchors(&mut self, anchors: Vec<nametags::NametagAnchor>) {
+    /// Installs this frame's anchors and returns the retired buffer for reuse.
+    pub fn set_nametag_anchors(
+        &mut self,
+        anchors: Vec<nametags::NametagAnchor>,
+    ) -> Vec<nametags::NametagAnchor> {
         self.nametag_bounds.finish_frame();
         if tracing::enabled!(tracing::Level::DEBUG) {
             let badges = anchors.iter().filter(|tag| tag.cinnabar_badge).count();
@@ -90,7 +93,7 @@ impl UiPresentationRuntime {
                 );
             }
         }
-        self.nametag_anchors = anchors;
+        std::mem::replace(&mut self.nametag_anchors, anchors)
     }
 
     /// Selects the local actor identity for a separate own-tag cosmetic colour.
@@ -111,7 +114,7 @@ impl UiPresentationRuntime {
             .and_then(|style| style.nametags.as_ref());
         let mut scene = nametags::build_nametag_scene(
             &self.nametag_anchors,
-            style.map_or(1.0, |style| style.scale),
+            style,
             font,
             &mut self.layouts,
             &mut self.nametag_atlas,

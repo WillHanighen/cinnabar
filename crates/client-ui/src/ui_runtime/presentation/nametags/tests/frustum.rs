@@ -3,6 +3,82 @@ use super::*;
 use glam::{Mat4, Quat};
 
 #[test]
+fn unchanged_full_projection_reuses_on_and_off_screen_text_without_allocating() {
+    let stream = actor_stream(6, Some("A\n".repeat(MAX_NAMETAG_LINES - 1).into()), 0);
+    let boards = ui::ScoreboardStore::default();
+    let camera = Vec3::new(2.5, HEAD_CLEARANCE + DEFAULT_HEIGHT, 1.0);
+    let clip = clip(camera, Quat::IDENTITY);
+    let mut presentation = crate::test_support::mini_engine_presentation();
+    let runtime = crate::ui_runtime::UiRuntime::new(1);
+    let mut text = NametagTextCache::default();
+    let mut rejected = 0;
+    let mut project =
+        |text: &mut NametagTextCache,
+         presentation: &mut crate::ui_runtime::presentation::UiPresentationRuntime| {
+            presentation.prepare_nametag_layout(&runtime);
+            let tags = project_nametags(
+                text,
+                &boards,
+                &stream,
+                view(camera),
+                None,
+                1.0,
+                true,
+                |tag| {
+                    let visible = presentation.nametag_intersects_view(tag, clip, Quat::IDENTITY);
+                    rejected += usize::from(!visible);
+                    visible
+                },
+            );
+            text.recycle_anchors(presentation.set_nametag_anchors(tags));
+        };
+    project(&mut text, &mut presentation);
+    let expected = presentation.nametag_anchors.clone();
+    assert!(!expected.is_empty() && expected.len() < 6);
+    let cached: Vec<_> = text
+        .entries
+        .values()
+        .map(|entry| Arc::clone(&entry.lines))
+        .collect();
+    assert_eq!(cached.len(), 6);
+    let built = presentation.layouts.built_layout_count();
+    let (_, allocations) = test_alloc::count(|| project(&mut text, &mut presentation));
+    assert_eq!(expected, presentation.nametag_anchors);
+    assert!(rejected != 0);
+    assert_eq!(allocations, 0);
+    assert_eq!(presentation.layouts.built_layout_count(), built);
+    assert!(
+        text.entries
+            .values()
+            .all(|entry| cached.iter().any(|lines| Arc::ptr_eq(lines, &entry.lines)))
+    );
+}
+
+#[test]
+fn newline_only_names_check_score_visibility_without_building_text() {
+    let mut actor = actor();
+    let boards = ui::ScoreboardStore::default();
+    for bytes in [
+        1,
+        protocol::MAX_ACTOR_METADATA_STRING_BYTES - 2,
+        protocol::MAX_ACTOR_METADATA_STRING_BYTES - 1,
+    ] {
+        let name: Arc<str> = "\n".repeat(bytes).into();
+        for score in ["", "\n", "7", "§a7"] {
+            actor
+                .metadata
+                .insert(METADATA_SCORE, ActorMetadataValue::String(score.into()));
+            let expected =
+                !nametag_lines(&tag_text(&actor, Arc::clone(&name), 1.0, Some(&boards))).is_empty();
+            let (visible, allocations) =
+                test_alloc::count(|| has_nametag_lines(&actor, &name, 1.0, Some(&boards)));
+            assert_eq!(visible, expected, "name bytes {bytes}, score {score:?}");
+            assert_eq!(allocations, 0);
+        }
+    }
+}
+
+#[test]
 fn candidate_bounds_stay_warm_beyond_the_shared_layout_cache() {
     let mut presentation = crate::test_support::mini_engine_presentation();
     let runtime = crate::ui_runtime::UiRuntime::new(1);
@@ -200,7 +276,7 @@ fn off_screen_near_actors_do_not_consume_the_tag_or_record_budgets() {
             &mut layouts,
             None
         )));
-        assert_eq!(text_cache.entries.len(), tags.len());
+        assert!(text_cache.entries.len() >= tags.len());
         let scene = scene_with_font(&tags, &font);
         assert_eq!(scene.records.len(), tags.len() * NAMETAG_RECORDS_PER_LINE);
     }

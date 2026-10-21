@@ -45,7 +45,7 @@ pub(super) fn install_graph(world: &mut World) {
                 .in_set(NametagOverlay)
                 .after(Core3dSystems::PostProcess)
                 .after(crate::mod_render::ModPassLabel)
-                .after(crate::mod_render::ModCompositionLabel)
+                .after(crate::mod_render::composition::ModCompositionLabel)
                 .before(crate::ui_render::UiOverlayLabel)
                 .before(crate::ui_render::overlay::UiOverlayPostLabel)
                 .before(bevy::core_pipeline::upscaling::upscaling),

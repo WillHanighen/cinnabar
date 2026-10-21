@@ -264,6 +264,10 @@ and performance qualification for these previews remains open.
 
 Player name tags use Java's standing player height before pose offsets, independent of
 server collision-box changes. Other actors retain their published label height.
+Name tag colours compose after Enhanced and shader-pack world effects with the scene's
+depth, and translucent plates use over-compositing for scene alpha. Coplanar shadows
+and glyphs share the anchor depth to avoid rounding speckle. Local cosmetic
+colour selection uses actor identity. In-world visual qualification remains open.
 
 Remaining qualification includes attachables and custom item models, action/use timing,
 projectile interpolation and shake, sleep/mount poses, name tags (including over

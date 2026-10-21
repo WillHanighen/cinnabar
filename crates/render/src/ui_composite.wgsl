@@ -23,8 +23,8 @@ fn linear_to_srgb(linear: vec3<f32>) -> vec3<f32> {
     return select(high, low, clamped <= vec3<f32>(0.0031308));
 }
 
-@fragment
-fn composite_fragment(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+// Composes one encoded layer pixel; world overlays preserve empty HDR scene pixels.
+fn composite_pixel(position: vec4<f32>, preserve_empty: bool) -> vec4<f32> {
     let pixel = vec2<i32>(position.xy);
     let ui = textureLoad(ui_layer, pixel, 0);
     if ui.a == 1.0 {
@@ -33,6 +33,9 @@ fn composite_fragment(@builtin(position) position: vec4<f32>) -> @location(0) ve
     let under = textureLoad(scene, pixel, 0);
     // Empty pixels share the scene clamp without a full-screen color round trip.
     if all(ui == vec4<f32>(0.0)) {
+        if preserve_empty {
+            return under;
+        }
         return vec4<f32>(clamp(under.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), under.a);
     }
     let gamma = ui.rgb + linear_to_srgb(under.rgb) * (1.0 - ui.a);
@@ -43,4 +46,14 @@ fn composite_fragment(@builtin(position) position: vec4<f32>) -> @location(0) ve
 @fragment
 fn clear_fragment() -> @location(0) vec4<f32> {
     return vec4<f32>(0.0);
+}
+
+@fragment
+fn composite_fragment(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+    return composite_pixel(position, false);
+}
+
+@fragment
+fn nametag_composite_fragment(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
+    return composite_pixel(position, true);
 }

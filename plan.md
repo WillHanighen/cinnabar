@@ -265,9 +265,10 @@ and performance qualification for these previews remains open.
 Player name tags use Java's standing player height before pose offsets, independent of
 server collision-box changes. Other actors retain their published label height.
 Name-tag budgets admit on-screen bounds before their caps, favor nearer labels and
-keep cosmetic labels complete. Atlas text
-retains formatting and line slots, with guarded cell edges and
-repacking before UV publication. In-world visual qualification remains open.
+keep cosmetic labels complete. Ordinary on-screen anchors skip text measurement for
+visibility. Atlas text retains formatting and line slots, with guarded cell edges and
+repacking before UV publication. Capacity repacks reuse unchanged line pixels; font
+and palette changes invalidate them. In-world visual qualification remains open.
 
 Remaining qualification includes attachables and custom item models, action/use timing,
 projectile interpolation and shake, sleep/mount poses, name tags (including over

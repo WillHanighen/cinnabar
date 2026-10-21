@@ -33,6 +33,25 @@ fn extended_style() -> ui::mod_hud::NametagStyle {
 }
 
 #[test]
+fn on_screen_ordinary_labels_need_no_text_measurement_for_admission() {
+    let font = ui_engine::test_support::fixture_font();
+    let mut layouts = TextLayoutCache::new(8, 1 << 20);
+    let clip = clip(Vec3::new(0.0, 2.5, 0.0), Quat::IDENTITY);
+    let tag = anchor("A\n§lB\n§kAAAA");
+    for style in [None, Some(extended_style())] {
+        assert!(intersects_view(
+            &tag,
+            clip,
+            Quat::IDENTITY,
+            &font,
+            &mut layouts,
+            style.as_ref(),
+        ));
+    }
+    assert_eq!(layouts.built_layout_count(), 0);
+}
+
+#[test]
 fn label_bounds_reject_off_screen_tags_but_keep_ink_at_the_frustum_edge() {
     let font = ui_engine::test_support::fixture_font();
     let mut layouts = TextLayoutCache::new(8, 1 << 20);

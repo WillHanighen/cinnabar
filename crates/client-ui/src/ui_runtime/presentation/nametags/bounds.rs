@@ -16,6 +16,16 @@ pub(in crate::ui_runtime::presentation) fn intersects_view(
     if style.is_some_and(|style| style.hide) || anchor.lines.is_empty() {
         return false;
     }
+    // The first plate contains the ordinary label's unlifted anchor. An on-screen
+    // anchor therefore intersects the conservative hull without measuring its text.
+    if !anchor.depth_tested
+        && render_model::visibility_bounds::points_intersect_view(
+            clip_from_world,
+            [anchor.position],
+        )
+    {
+        return true;
+    }
     let Some(name) = line_metrics(&anchor.lines[0], font, layouts) else {
         return true;
     };

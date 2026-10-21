@@ -418,6 +418,8 @@ pub fn project_nametags(
     show_players: bool,
     mut admit: impl FnMut(&mut NametagAnchor) -> bool,
 ) -> Vec<NametagAnchor> {
+    #[cfg(feature = "tracy")]
+    let _zone = tracing::info_span!("nametag.select").entered();
     let authority = stream.authority();
     // Java hides the label of a mount carrying a passenger, including the local player.
     let mounts: HashSet<_> = authority
@@ -476,6 +478,8 @@ pub fn build_nametag_scene<'p>(
     atlas: &mut NametagAtlas,
     pages: &impl Fn(usize) -> Option<GlyphPage<'p>>,
 ) -> NametagScene {
+    #[cfg(feature = "tracy")]
+    let _zone = tracing::info_span!("nametag.scene").entered();
     // Admit nearer labels first; final draw order follows placed geometry.
     let mut ordered: Vec<&NametagAnchor> = anchors.iter().collect();
     ordered.sort_by(|a, b| {

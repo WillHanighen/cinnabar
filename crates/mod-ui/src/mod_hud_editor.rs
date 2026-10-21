@@ -338,6 +338,7 @@ impl ModUi {
         let mut zones = feedback::KeepOutRenderer { rects: &keep_out };
         let mut renderers: [&mut dyn CustomRenderer; 3] = [&mut items, &mut glass, &mut zones];
         // Keep pointer feedback outside the editor borrow while measuring native hit bounds.
+        let hovered = editor.hovered_card();
         let view = std::mem::take(&mut editor.view);
         let art = ScreenArt {
             view: Some(&view),
@@ -357,7 +358,7 @@ impl ModUi {
                     for (n, card) in editor.draft.cards.iter().enumerate() {
                         crate::mod_widgets::text_plate::data(values, card, n, viewport);
                     }
-                    editor.write_geometry(values);
+                    editor.write_geometry(values, hovered);
                     editor.data = data;
                 }
                 if editor.catalog.is_none() {

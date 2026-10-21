@@ -409,3 +409,50 @@ fn card_outlines_follow_hover_and_selection_without_rebuilding() {
             .unwrap()
     ));
 }
+
+/// A hovered text plate keeps its outline when live content changes its measured size.
+#[test]
+fn hovered_outline_survives_text_plate_remeasurement() {
+    let engine = engine();
+    let font = ui_engine::test_support::fixture_font();
+    let mut layouts = ui::TextLayoutCache::new(64, 1 << 24);
+    let mut ui = ModUi::default();
+    let mut hud: Hud = serde_json::from_value(serde_json::json!({"cards":[{"id":"fps",
+        "position":[0.5,0.5],"rows":[{"label":"","value":"1"}],"text_plate":{}}]}))
+    .unwrap();
+    painted(&mut ui, &engine, &font, &mut layouts, hud.cards.clone());
+    let editor = ui.mod_hud_editor.as_ref().unwrap();
+    let frame = editor.frame.as_ref().unwrap();
+    let hit = frame
+        .hits
+        .iter()
+        .find(|hit| hit.pressed.as_deref() == Some("hud.card:0"))
+        .unwrap();
+    let at = [
+        (hit.rect.x + hit.rect.w * 0.5) as f32 * frame.scale + frame.origin[0],
+        (hit.rect.y + hit.rect.h * 0.5) as f32 * frame.scale + frame.origin[1],
+    ];
+    ui.mod_hud_editor
+        .as_mut()
+        .unwrap()
+        .pointer(at, false, false, &mut []);
+    paint(&mut ui, &engine, &font, &mut layouts, 2.);
+    let outline = || {
+        ui::mod_hud::EditorStyle::default()
+            .outline
+            .map(|v| serde_json::json!(v))
+    };
+    let bound = |ui: &ModUi| {
+        ui.mod_hud_editor
+            .as_ref()
+            .unwrap()
+            .data
+            .global_value("#bounds_0_color")
+            .cloned()
+    };
+    assert_eq!(bound(&ui), Some(Scalar::Json(serde_json::json!(outline()))));
+    hud.cards[0].rows[0].value = "123456".into();
+    ui.update_mod_hud_editor(&hud).unwrap();
+    paint(&mut ui, &engine, &font, &mut layouts, 3.);
+    assert_eq!(bound(&ui), Some(Scalar::Json(serde_json::json!(outline()))));
+}

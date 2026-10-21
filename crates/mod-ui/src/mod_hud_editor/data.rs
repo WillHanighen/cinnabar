@@ -34,12 +34,13 @@ impl HudEditor {
         for &(index, fill) in &self.control_fills {
             data.set_global(format!("#row_{index}_fill"), Scalar::Num(fill));
         }
-        self.write_geometry(&mut data);
+        self.write_geometry(&mut data, self.hovered_card());
         data
     }
 
-    /// Shares displayed geometry and hidden-card filtering between paint and text measurement.
-    pub(super) fn write_geometry(&mut self, data: &mut DataSource) {
+    /// Shares displayed geometry and hidden-card filtering between paint and text measurement;
+    /// `hovered` comes from the caller because paint borrows the view state meanwhile.
+    pub(super) fn write_geometry(&mut self, data: &mut DataSource, hovered: Option<usize>) {
         data.set_global("#hud_dragging", Scalar::Bool(self.drag.is_some()));
         for axis in 0..2 {
             let guide = self.drag.as_ref().and_then(|drag| drag.guides[axis]);
@@ -55,7 +56,6 @@ impl HudEditor {
             );
         }
         let style = self.draft.editor_style.unwrap_or_default();
-        let hovered = self.hovered_card();
         for (index, card) in self.draft.cards.iter().enumerate() {
             let visible = !self.hidden.contains(&card.id);
             data.set_global(format!("#card_{index}_visible"), Scalar::Bool(visible));
@@ -184,7 +184,7 @@ impl HudEditor {
     }
 
     /// Card whose bounds or resize handle is under the pointer in the last painted frame.
-    fn hovered_card(&self) -> Option<usize> {
+    pub(super) fn hovered_card(&self) -> Option<usize> {
         let key = self.view.hovered.as_ref()?;
         let action = self
             .frame

@@ -245,6 +245,17 @@ fn screen_overlay_leaves_pack_categories_drawn() {
 }
 
 #[test]
+fn nametag_records_leave_pack_categories_drawn() {
+    let mut world = ready_world();
+    world.init_resource::<render_scene::NametagSceneResource>();
+    world
+        .resource_mut::<render_scene::NametagSceneResource>()
+        .records
+        .push(render_model::NametagRecord::default());
+    assert_replacement(&mut world);
+}
+
+#[test]
 fn unsupported_actor_leaves_pack_categories_drawn() {
     let mut world = ready_world();
     let mut frame = render_scene::ActorRenderFrame::default();

@@ -140,7 +140,6 @@ fn off_screen_near_actors_do_not_consume_the_tag_or_record_budgets() {
         ),
     ] {
         let view = NametagView {
-            viewer_position: Vec3::ZERO,
             camera_position: camera,
             camera_forward: rotation * Vec3::NEG_Z,
         };
@@ -202,11 +201,12 @@ fn admission_bounds_cover_the_production_quads_for_every_label_extension() {
         Quat::from_euler(glam::EulerRot::YXZ, 0.4, -0.6, 0.2),
     ] {
         let forward = rotation * Vec3::NEG_Z;
-        for sneaking in [false, true] {
+        for (sneaking, depth_tested) in [(false, false), (true, true), (false, true)] {
             for separate in [false, true] {
                 for before in [false, true] {
                     let mut tag = anchor("AAAA\nB");
-                    tag.depth_tested = sneaking;
+                    tag.sneaking = sneaking;
+                    tag.depth_tested = depth_tested;
                     tag.camera_forward_y = forward.y;
                     tag.cinnabar_badge = true;
                     tag.set_counter_annotation(Some(Arc::new(ui::mod_hud::CounterAnnotation {

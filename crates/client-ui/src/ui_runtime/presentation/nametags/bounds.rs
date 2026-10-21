@@ -210,7 +210,7 @@ impl MeasuredBounds {
     /// Applies live sneak placement and projects the complete range of possible line lifts.
     fn intersects_view(self, anchor: &NametagAnchor, clip: Mat4, rotation: Quat) -> bool {
         let mut rect = self.rect;
-        if anchor.depth_tested {
+        if anchor.sneaking {
             let drop = SNEAK_LABEL_DROP / render_model::NAMETAG_BLOCKS_PER_FONT_PIXEL * self.scale;
             rect[1] += drop;
             rect[3] += drop;

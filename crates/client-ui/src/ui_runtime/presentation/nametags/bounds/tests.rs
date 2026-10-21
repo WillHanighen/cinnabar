@@ -31,6 +31,7 @@ fn cached_bounds_refresh_font_and_text_but_project_live_pose_without_layout_work
     let built = layouts.built_layout_count();
     tag.position.z = 5.0;
     tag.depth_tested = true;
+    tag.sneaking = true;
     let (visible, allocations) = test_alloc::count(|| {
         cache.intersects_view(&tag, clip, Quat::IDENTITY, &wider, &mut layouts, None)
     });

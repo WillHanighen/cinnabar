@@ -45,6 +45,24 @@ fn grade(
     pass.draw(0..3, 0..1);
 }
 
+/// Models an authored mod effect sharing the view's alternating scene textures.
+fn mod_grade(
+    world: &World,
+    query: bevy::render::renderer::ViewQuery<&'static ViewTarget>,
+    context: RenderContext,
+) {
+    grade(world, query, context);
+}
+
+/// Models selection-halo composition after the authored effects.
+fn halo_grade(
+    world: &World,
+    query: bevy::render::renderer::ViewQuery<&'static ViewTarget>,
+    context: RenderContext,
+) {
+    grade(world, query, context);
+}
+
 /// Builds known scene geometry and the production nametag phase without game carriers.
 fn fixture(hdr: bool, msaa: Msaa) -> Option<(App, Entity, Handle<Image>)> {
     let (mut app, camera, image) = app_with_effects(renderer()?, |app| {
@@ -63,18 +81,12 @@ fn fixture(hdr: bool, msaa: Msaa) -> Option<(App, Entity, Handle<Image>)> {
         .insert((render_scene::shaderpack::ShaderPackRendering, msaa));
     let world = app.sub_app_mut(RenderApp).world_mut();
     let device = world.resource::<RenderDevice>().clone();
-    use crate::render_test_support::scene_raster::{FixturePipelines, fixture_pipeline_format};
+    use crate::render_test_support::scene_raster::FixturePipelines;
     let format = if hdr {
         render_scene::SCENE_HDR_FORMAT
     } else {
         render_scene::SCENE_COLOR_FORMAT
     };
-    world.insert_resource(FixturePipelines {
-        checker: fixture_pipeline_format(&device, msaa.samples(), format, "checker"),
-        sloped_checker: fixture_pipeline_format(&device, msaa.samples(), format, "sloped_checker"),
-        silhouette: fixture_pipeline_format(&device, msaa.samples(), format, "silhouette"),
-        scene: 0,
-    });
     let module = device
         .wgpu_device()
         .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -85,47 +97,76 @@ fn fixture(hdr: bool, msaa: Msaa) -> Option<(App, Entity, Handle<Image>)> {
     let p = vec2(f32((i << 1u) & 2u), f32(i & 2u));
     return vec4(p * 2.0 - 1.0, 0.0, 1.0);
 }
-@fragment fn fragment() -> @location(0) vec4<f32> { return vec4(0.04, 0.08, 0.12, 1.0); }
+// Both paths start with the same world colour for a complete coverage comparison.
+fn background() -> vec4<f32> { return vec4(0.04, 0.08, 0.12, 1.0); }
+@fragment fn fragment() -> @location(0) vec4<f32> { return background(); }
+struct WorldOutput { @location(0) colour: vec4<f32>, @builtin(frag_depth) depth: f32 }
+@fragment fn world_fragment() -> WorldOutput { return WorldOutput(background(), 0.5); }
 "#
                 .into(),
             ),
         });
-    let pipeline = device
-        .wgpu_device()
-        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("world colour replacement"),
-            layout: None,
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vertex"),
-                buffers: &[],
-                compilation_options: default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fragment"),
-                compilation_options: default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: None,
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: default(),
-            depth_stencil: None,
-            multisample: default(),
-            multiview_mask: None,
-            cache: None,
-        });
-    world.insert_resource(Grade(pipeline, true));
+    let pipeline = |samples: u32, entry: &str, depth: bool| {
+        device
+            .wgpu_device()
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("world colour replacement"),
+                layout: None,
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some("vertex"),
+                    buffers: &[],
+                    compilation_options: default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some(entry),
+                    compilation_options: default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    })],
+                }),
+                primitive: default(),
+                depth_stencil: depth.then_some(wgpu::DepthStencilState {
+                    format: bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::Always),
+                    stencil: default(),
+                    bias: default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: samples,
+                    ..default()
+                },
+                multiview_mask: None,
+                cache: None,
+            })
+    };
+    let opaque = pipeline(msaa.samples(), "world_fragment", true);
+    world.insert_resource(FixturePipelines {
+        checker: opaque.clone(),
+        sloped_checker: opaque.clone(),
+        silhouette: opaque,
+        scene: 0,
+    });
+    world.insert_resource(Grade(pipeline(1, "fragment", false), true));
     crate::chunk::transparent::gamma_pass::install_graph(world);
     overlay::install_graph(world);
     world.schedule_scope(Core3d, |_, schedule| {
-        schedule.add_systems(
+        schedule.add_systems((
             grade
                 .in_set(Core3dSystems::PostProcess)
                 .before(bevy::core_pipeline::tonemapping::tonemapping),
-        );
+            mod_grade
+                .in_set(crate::mod_render::ModPassLabel)
+                .after(Core3dSystems::PostProcess),
+            halo_grade
+                .in_set(crate::mod_render::ModCompositionLabel)
+                .after(Core3dSystems::PostProcess)
+                .after(crate::mod_render::ModPassLabel),
+        ));
     });
     Some((app, camera, image))
 }
@@ -205,15 +246,17 @@ fn labels_keep_their_colour_after_ldr_and_hdr_world_replacement_and_retain_depth
             .entity_mut(camera)
             .remove::<render_scene::shaderpack::ShaderPackRendering>();
         let native = pixels(&mut app, &image);
-        for (actual, expected) in visible[center..center + 4]
+        if let Some(byte) = visible
             .iter()
-            .zip(&native[center..center + 4])
+            .zip(&native)
+            .position(|(actual, expected)| actual.abs_diff(*expected) > 2)
         {
-            assert!(
-                actual.abs_diff(*expected) <= 2,
-                "hdr {hdr}, reduced {reduced}, msaa {msaa:?}: overlay {:?}, native {:?}",
-                &visible[center..center + 4],
-                &native[center..center + 4]
+            let at = byte / 4 * 4;
+            panic!(
+                "hdr {hdr}, reduced {reduced}, msaa {msaa:?}, pixel {}: overlay {:?}, native {:?}",
+                byte / 4,
+                &visible[at..at + 4],
+                &native[at..at + 4]
             );
         }
         app.world_mut()

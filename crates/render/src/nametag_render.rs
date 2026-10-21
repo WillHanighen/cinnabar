@@ -130,7 +130,9 @@ pub(crate) fn install_nametag_render(app: &mut App) {
             (
                 overlay::install_graph.in_set(RenderSystems::Prepare),
                 prepare_nametags.in_set(RenderSystems::PrepareResources),
-                overlay::prepare.in_set(RenderSystems::PrepareResources),
+                overlay::prepare
+                    .in_set(RenderSystems::PrepareResources)
+                    .after(bevy::core_pipeline::core_3d::prepare_core_3d_depth_textures),
                 prepare_nametag_bind_group.in_set(RenderSystems::PrepareBindGroups),
                 queue_nametags
                     .run_if(render_scene::panorama::world_passes_enabled)

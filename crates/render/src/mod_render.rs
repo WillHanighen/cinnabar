@@ -9,6 +9,7 @@ mod passes;
 pub(crate) use passes::PassGpu;
 
 mod composition;
+pub(crate) use composition::ModCompositionLabel;
 mod primitives;
 mod retained;
 #[cfg(test)]

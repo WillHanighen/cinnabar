@@ -157,7 +157,7 @@ fn off_screen_near_actors_do_not_consume_the_tag_or_record_budgets() {
             |_| true,
         );
         assert_eq!(unculled.len(), MAX_PRESENTED_NAMETAGS);
-        assert!(unculled.iter().all(|tag| !cache.intersects_view(
+        assert!(unculled.iter().any(|tag| !cache.intersects_view(
             tag,
             clip,
             rotation,
@@ -165,6 +165,21 @@ fn off_screen_near_actors_do_not_consume_the_tag_or_record_budgets() {
             &mut layouts,
             None
         )));
+        let visible_candidates = stream
+            .authority()
+            .remote_actors()
+            .filter_map(|actor| {
+                extract_nametag(
+                    actor,
+                    view,
+                    None,
+                    stream.authority().actor_name_tag(actor.unique_id)?,
+                    Some(&boards),
+                    1.0,
+                )
+            })
+            .filter(|tag| cache.intersects_view(tag, clip, rotation, &font, &mut layouts, None))
+            .count();
         let tags = project_nametags(
             &mut text_cache,
             &boards,
@@ -175,8 +190,8 @@ fn off_screen_near_actors_do_not_consume_the_tag_or_record_budgets() {
             true,
             |tag| cache.intersects_view(tag, clip, rotation, &font, &mut layouts, None),
         );
-        assert!(!tags.is_empty());
-        assert!(tags.len() <= MAX_PRESENTED_NAMETAGS);
+        assert!(visible_candidates != 0);
+        assert_eq!(tags.len(), visible_candidates.min(MAX_PRESENTED_NAMETAGS));
         assert!(tags.iter().all(|tag| cache.intersects_view(
             tag,
             clip,

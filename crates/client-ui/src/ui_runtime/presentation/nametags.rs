@@ -19,7 +19,9 @@ use ui::{FONT_DESIGN_PIXEL_TEXELS, TextLayoutCache};
 use ui_screens::text::bounded_text;
 
 use super::nametag_atlas::{GlyphPage, NametagAtlas};
+pub(super) mod bounds;
 mod counter;
+pub(super) mod style;
 
 #[cfg(test)]
 pub(super) mod tests;
@@ -401,7 +403,11 @@ fn has_nametag_lines(
         .any(|byte| byte != b'\n')
 }
 
-/// Selects the nearest eligible actors before extracting their bounded, cached tag text.
+/// Selects the nearest on-screen labels after native eligibility, before applying the tag cap.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Presentation bounds are supplied independently of actor eligibility."
+)]
 pub fn project_nametags(
     cache: &mut NametagTextCache,
     scoreboards: &ui::ScoreboardStore,
@@ -410,6 +416,7 @@ pub fn project_nametags(
     picked_actor: Option<u64>,
     partial_tick: f32,
     show_players: bool,
+    mut admit: impl FnMut(&mut NametagAnchor) -> bool,
 ) -> Vec<NametagAnchor> {
     let authority = stream.authority();
     // Java hides the label of a mount carrying a passenger, including the local player.
@@ -438,18 +445,25 @@ pub fn project_nametags(
             .total_cmp(b_distance)
             .then(a.runtime_id.cmp(&b.runtime_id))
     });
-    candidates.truncate(MAX_PRESENTED_NAMETAGS);
-    let selected: HashSet<_> = candidates
-        .iter()
-        .map(|(actor, _, _)| (actor.runtime_id, actor.unique_id))
-        .collect();
-    cache.retain_selected(&selected);
-    candidates
-        .into_iter()
-        .filter_map(|(actor, name, _)| {
+    let mut anchors = Vec::with_capacity(MAX_PRESENTED_NAMETAGS);
+    let mut selected = HashSet::with_capacity(MAX_PRESENTED_NAMETAGS);
+    for (actor, name, _) in candidates {
+        let Some(mut anchor) =
             cache.extract(actor, view, picked_actor, name, scoreboards, partial_tick)
-        })
-        .collect()
+        else {
+            continue;
+        };
+        if !admit(&mut anchor) {
+            continue;
+        }
+        selected.insert((actor.runtime_id, actor.unique_id));
+        anchors.push(anchor);
+        if anchors.len() == MAX_PRESENTED_NAMETAGS {
+            break;
+        }
+    }
+    cache.retain_selected(&selected);
+    anchors
 }
 
 /// Draws complete labels back to front, keeping each plate and its text passes together.
@@ -462,35 +476,47 @@ pub fn build_nametag_scene<'p>(
     atlas: &mut NametagAtlas,
     pages: &impl Fn(usize) -> Option<GlyphPage<'p>>,
 ) -> NametagScene {
-    // Retain budget and atlas allocation order; final draw order follows placed geometry.
+    // Admit nearer labels first; final draw order follows placed geometry.
     let mut ordered: Vec<&NametagAnchor> = anchors.iter().collect();
     ordered.sort_by(|a, b| {
-        b.view_depth
-            .total_cmp(&a.view_depth)
+        a.view_depth
+            .total_cmp(&b.view_depth)
             .then(a.runtime_id.cmp(&b.runtime_id))
     });
     let mut available_records = MAX_NAMETAG_RECORDS;
     // Any deferred atlas rebuild must finish before this frame captures its first cell UVs.
-    atlas.begin_frame(ordered.iter().flat_map(|anchor| {
-        let badge_records = usize::from(anchor.cinnabar_badge);
-        let counter_records = anchor
-            .counter
-            .as_ref()
-            .map_or(0, |counter| counter::record_budget(counter));
-        let count = anchor.lines.len().min(
-            available_records.saturating_sub(badge_records + counter_records)
-                / NAMETAG_RECORDS_PER_LINE,
-        );
-        available_records -= count * NAMETAG_RECORDS_PER_LINE
-            + usize::from(count != 0) * (badge_records + counter_records);
-        anchor.lines.iter().take(count).chain(
-            anchor
+    let requested: Vec<_> = ordered
+        .iter()
+        .flat_map(|anchor| {
+            let badge_records = usize::from(anchor.cinnabar_badge);
+            let counter_records = anchor
                 .counter
                 .as_ref()
-                .into_iter()
-                .flat_map(|counter| counter::texts(counter)),
-        )
-    }));
+                .map_or(0, |counter| counter::record_budget(counter));
+            let count = anchor.lines.len().min(
+                available_records.saturating_sub(badge_records + counter_records)
+                    / NAMETAG_RECORDS_PER_LINE,
+            );
+            available_records -= count * NAMETAG_RECORDS_PER_LINE
+                + usize::from(count != 0) * (badge_records + counter_records);
+            anchor.lines.iter().take(count).chain(
+                anchor
+                    .counter
+                    .as_ref()
+                    .filter(|_| count != 0)
+                    .into_iter()
+                    .flat_map(|counter| counter::texts(counter)),
+            )
+        })
+        .cloned()
+        .collect();
+    atlas.prepare_frame(
+        &requested,
+        ordered.iter().any(|anchor| anchor.cinnabar_badge),
+        font,
+        layouts,
+        pages,
+    );
     let badge = ordered
         .iter()
         .any(|anchor| anchor.cinnabar_badge)
@@ -513,20 +539,14 @@ pub fn build_nametag_scene<'p>(
             .saturating_sub(badge_records + counter_records)
             / NAMETAG_RECORDS_PER_LINE;
         placed.clear();
-        let mut name_placed = false;
         placed.extend(
             anchor
                 .lines
                 .iter()
                 .take(remaining_lines)
-                .enumerate()
-                .filter_map(|(index, line)| {
-                    let line = atlas.line(line, font, layouts, pages)?;
-                    name_placed |= index == 0;
-                    Some(line)
-                }),
+                .map(|line| atlas.line(line, font, layouts, pages)),
         );
-        if placed.is_empty() {
+        if !placed.iter().any(Option::is_some) {
             continue;
         }
         let counter = anchor
@@ -541,9 +561,15 @@ pub fn build_nametag_scene<'p>(
             .filter(|_| !separate)
             .map_or(0., |counter| counter.width() + counter.gap);
         let name_line_start = usize::from(separate && before);
-        let [ink_top, ink_bottom] = placed[0].ink_y_px;
+        let name_metrics = placed[0]
+            .map(|line| (line.width_px, line.ink_y_px))
+            .or_else(|| {
+                super::nametag_atlas::line_metrics(&anchor.lines[0], font, layouts)
+                    .map(|metrics| (metrics.width_px, metrics.ink_y_px))
+            });
+        let (name_width, [ink_top, ink_bottom]) = name_metrics.unwrap_or_default();
         let badge_size = ink_bottom - ink_top;
-        let badge = badge.filter(|_| name_placed && badge_size > 0.0);
+        let badge = badge.filter(|_| badge_size > 0.0);
         let extra_width = if badge.is_some() {
             badge_size + 1.0
         } else {
@@ -565,7 +591,7 @@ pub fn build_nametag_scene<'p>(
                     counter_width
                 } else {
                     let index = line - name_line_start;
-                    placed[index].width_px
+                    placed[index].map_or(0.0, |line| line.width_px)
                         + if index == 0 {
                             extra_width + inline_width
                         } else {
@@ -573,7 +599,12 @@ pub fn build_nametag_scene<'p>(
                         }
                 }
             }))
-            .map(|rect| NametagRecord {
+            .enumerate()
+            .filter(|(index, _)| {
+                (separate && *index == if before { 0 } else { placed.len() })
+                    || placed[index - name_line_start].is_some()
+            })
+            .map(|(_, rect)| NametagRecord {
                 rect,
                 uv: [0.0, 0.0, -1.0, -1.0],
                 color: PLATE_COLOR,
@@ -581,6 +612,9 @@ pub fn build_nametag_scene<'p>(
             }),
         );
         for (index, line) in placed.iter().enumerate() {
+            let Some(line) = line else {
+                continue;
+            };
             let left = if index == 0 {
                 nametag_line_left(line.width_px + extra_width + inline_width)
                     + extra_width
@@ -605,12 +639,12 @@ pub fn build_nametag_scene<'p>(
                     if before { 0 } else { placed.len() },
                 )
             } else {
-                let left = nametag_line_left(placed[0].width_px + extra_width + inline_width);
+                let left = nametag_line_left(name_width + extra_width + inline_width);
                 (
                     if before {
                         left
                     } else {
-                        left + extra_width + placed[0].width_px + counter.gap
+                        left + extra_width + name_width + counter.gap
                     },
                     0,
                 )
@@ -618,7 +652,7 @@ pub fn build_nametag_scene<'p>(
             counter.append(&mut records, common, left, line, anchor.text_alpha);
         }
         if let Some(badge) = badge {
-            let left = nametag_line_left(placed[0].width_px + extra_width + inline_width)
+            let left = nametag_line_left(name_width + extra_width + inline_width)
                 + if before && !separate {
                     inline_width
                 } else {
@@ -647,95 +681,30 @@ pub fn build_nametag_scene<'p>(
         }
         let plane_depth =
             anchor.view_depth + anchor.camera_forward_y * (common.line_lift * lift_scale);
-        labels.push((plane_depth, anchor.runtime_id, first..records.len()));
+        labels.push((
+            plane_depth,
+            anchor.runtime_id,
+            anchor.view_depth,
+            first..records.len(),
+        ));
     }
     labels.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
     let mut ordered_records = Vec::with_capacity(records.len());
-    for (_, _, range) in labels {
+    let mut ordered_labels = Vec::with_capacity(labels.len());
+    for (_, _, view_depth, range) in labels {
+        let first = ordered_records.len();
         ordered_records.extend_from_slice(&records[range]);
+        ordered_labels.push(render_model::NametagLabel {
+            records: first..ordered_records.len(),
+            view_depth,
+        });
     }
     let (atlas, atlas_revision) = atlas.publish();
     NametagScene {
         records: ordered_records,
+        labels: ordered_labels,
         atlas,
         atlas_revision,
-    }
-}
-
-/// Applies bounded cosmetic overrides without changing record order or depth selection.
-pub(super) fn style_scene(
-    scene: &mut NametagScene,
-    style: &ui::mod_hud::NametagStyle,
-    own_anchor: Option<[f32; 3]>,
-) {
-    if style.hide {
-        scene.records.clear();
-        return;
-    }
-    let original = std::mem::take(&mut scene.records);
-    for mut record in original {
-        for coordinate in &mut record.rect {
-            *coordinate *= style.scale;
-        }
-        record.line_lift *= style.scale;
-        let mut extra = Vec::new();
-        if record.uv[2] < 0.0 {
-            if let Some(color) = style.background_color {
-                record.color = color;
-            }
-            record.color[3] *= style.opacity;
-            if let Some(mut color) = style.border_color {
-                color[3] *= style.opacity;
-                let [left, top, right, bottom] = record.rect;
-                let width = style.border_width * style.scale;
-                for rect in [
-                    [left - width, top - width, right + width, top],
-                    [left - width, bottom, right + width, bottom + width],
-                    [left - width, top, left, bottom],
-                    [right, top, right + width, bottom],
-                ] {
-                    extra.push(NametagRecord {
-                        rect,
-                        color,
-                        ..record
-                    });
-                }
-            }
-        } else {
-            let own = own_anchor == Some(record.anchor);
-            let text_color = if own {
-                style.own_text_color.or(style.text_color)
-            } else {
-                style.text_color
-            };
-            let replace = if own && style.own_text_color.is_some() {
-                style.replace_own_text_color
-            } else {
-                style.replace_text_color
-            };
-            if let Some(color) = text_color {
-                for (channel, tint) in record.color[..3].iter_mut().zip(color) {
-                    *channel = if replace { tint } else { *channel * tint };
-                }
-                record.color[3] *= color[3];
-            }
-            record.color[3] *= style.opacity;
-            if style.shadow {
-                let mut shadow = record;
-                shadow.rect = [
-                    record.rect[0] + style.scale,
-                    record.rect[1] + style.scale,
-                    record.rect[2] + style.scale,
-                    record.rect[3] + style.scale,
-                ];
-                shadow.color = [0., 0., 0., record.color[3] * 0.8];
-                extra.push(shadow);
-            }
-        }
-        if scene.records.len() + extra.len() < MAX_NAMETAG_RECORDS {
-            scene.records.extend(extra);
-            scene.records.push(record);
-        }
     }
 }
 

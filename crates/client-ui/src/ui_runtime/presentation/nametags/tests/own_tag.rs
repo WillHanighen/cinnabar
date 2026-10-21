@@ -73,6 +73,7 @@ fn client_generated_flags_allow_own_tag_extraction_and_preserve_server_visibilit
             None,
             1.0,
             true,
+            |_| true
         )
         .is_empty()
     );

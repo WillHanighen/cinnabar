@@ -1,8 +1,11 @@
+use super::style::style_scene;
 use super::*;
 mod counter;
 use protocol_ids::ActorFlag;
 
 mod badges;
+mod budget;
+mod frustum;
 mod opacity;
 mod own_tag;
 mod view_depth;
@@ -344,7 +347,16 @@ fn projected_tags_hide_the_local_viewer_and_mounts_carrying_passengers() {
     let mut cache = NametagTextCache::default();
     let boards = ui::ScoreboardStore::default();
     let project = |cache: &mut NametagTextCache, stream: &chunk_pipeline::WorldStream| {
-        project_nametags(cache, &boards, stream, view(Vec3::ZERO), None, 1.0, true)
+        project_nametags(
+            cache,
+            &boards,
+            stream,
+            view(Vec3::ZERO),
+            None,
+            1.0,
+            true,
+            |_| true,
+        )
     };
     let tags = project(&mut cache, &stream);
     assert_eq!(
@@ -456,10 +468,10 @@ fn oversized_tags_render_a_prefix_within_the_scene_budget() {
 }
 
 #[test]
-fn oversized_tags_use_the_budget_left_by_earlier_tags() {
+fn nearest_tags_take_the_budget_before_farther_tags() {
     let mut first = anchor("AB");
     first.position.x = 1.0;
-    first.view_depth = 8.0;
+    first.view_depth = 2.0;
     let first_records = NAMETAG_RECORDS_PER_LINE;
     let remaining_lines = (MAX_NAMETAG_RECORDS - first_records) / NAMETAG_RECORDS_PER_LINE;
     let mut oversized = anchor(&"A\n".repeat(remaining_lines + 2));
@@ -788,6 +800,7 @@ fn projection_limits_extraction_to_the_nearest_tags_and_reuses_their_text() {
             None,
             0.5,
             show_players,
+            |_| true,
         )
     };
     let (first, cold_allocations) = test_alloc::count(|| project(&mut cache, true));

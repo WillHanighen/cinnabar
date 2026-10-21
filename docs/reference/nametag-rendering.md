@@ -18,7 +18,12 @@ Ordinary labels draw a plate and full-opacity text through geometry so server
 cosmetics extending above the actor's published bounds cannot obscure the name. Each complete label is drawn back to front by camera
 depth
 of the final lifted plane, including cosmetic scale, before starting the next label.
-Only lines that fit the scene and atlas contribute to the lift. Viewer distance still
+Presentation bounds exclude off-screen labels before the tag and record caps. They
+include text, plates, badges, counters, cosmetic extensions and possible prefix lifts.
+The scene admits nearer labels first, then draws their final planes back to front.
+Cosmetic borders and shadows admit or reject a complete label within the record cap.
+An atlas miss leaves later lines in their original slots; the badge and counter stay
+with the first slot. Fragmented cells are repacked before records capture their UVs. Viewer distance still
 controls visibility and score range. Sneaking labels draw only a depth-tested plate and dim text.
 Sneaking text alpha is `32 / 255`; only sneaking text writes depth. Labels have no depth
 bias, and sampled atlas coverage must exceed `0.1` before text alpha and cosmetic
@@ -28,6 +33,11 @@ Invisible actors, mounts carrying passengers and server hide flags suppress labe
 The local label stays hidden by default; the existing optional own-tag style is
 limited to third person. The open font, server text and formatting, multiline
 handling, debug text and explicit debug quaternions retain their existing paths.
+Italic and obfuscated runs share the UI text effects. Obfuscated runs update their
+existing cells once per frame seed. Private-use coverage icons keep white ink,
+and transparent gutters separate neighboring cells. Full-span edges use the existing
+clamp sampler, preserving the original maximum line size.
+Fractional advances round up before centering the plate.
 Rendered-frame acceptance remains pending.
 
 ## Earlier Bedrock implementation

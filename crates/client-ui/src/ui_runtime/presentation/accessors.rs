@@ -124,9 +124,37 @@ impl UiPresentationRuntime {
                 .iter()
                 .find(|anchor| Some(anchor.runtime_id) == self.nametag_local_actor)
                 .map(|anchor| anchor.position.to_array());
-            nametags::style_scene(&mut scene, style, own_anchor);
+            nametags::style::style_scene(&mut scene, style, own_anchor);
         }
         scene
+    }
+
+    /// Installs this session's font before label bounds reserve presentation resources.
+    pub fn prepare_nametag_layout(&mut self, runtime: &UiRuntime) {
+        dynamic_textures::observe_session(self, runtime.session_id());
+        session_glyphs::observe(self, runtime.session_glyphs());
+    }
+
+    /// Tests painted label bounds without changing actor eligibility or depth policy.
+    pub fn nametag_intersects_view(
+        &mut self,
+        anchor: &nametags::NametagAnchor,
+        clip_from_world: glam::Mat4,
+        rotation: glam::Quat,
+    ) -> bool {
+        let style = self
+            .screens
+            .mod_ui
+            .mod_actor_style()
+            .and_then(|style| style.nametags.as_ref());
+        nametags::bounds::intersects_view(
+            anchor,
+            clip_from_world,
+            rotation,
+            &self.font,
+            &mut self.layouts,
+            style,
+        )
     }
 
     /// Retained text-layout cache entries, exposed for the bounded-memory

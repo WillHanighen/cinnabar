@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use crate::runtime::network::resource_packs::PackApplication;
-use bevy::prelude::{Local, Transform, Vec3};
+use bevy::prelude::{Local, Projection, Transform, Vec3};
 use client_runtime::network::NetworkHandle;
 use inventory::inventory_ledger::PlayerInventorySlot;
 use {super::*, client_presentation::camera::CameraSettingsAuthority};
@@ -85,7 +85,7 @@ pub(crate) fn prepare_ui_runtime(
     mut client_world: ResMut<ClientWorld>,
     camera_settings: Res<CameraSettingsAuthority>,
     // The camera's Transform is this frame's; its GlobalTransform is propagated after Update.
-    cameras: Query<(&Camera, &Transform), With<Camera3d>>,
+    cameras: Query<(&Camera, &Transform, &Projection), With<Camera3d>>,
     time: Res<Time<Real>>,
     extras: PublishExtras,
     mut hand: crate::presentation::viewmodel::ViewmodelPublish,
@@ -427,10 +427,13 @@ pub(crate) fn prepare_ui_runtime(
         .player_roster
         .set_show_badges(settings.value(SettingId::CinnabarBadges) != 0);
     let show_names = settings.value(SettingId::IngamePlayerNames) != 0;
-    let tag_style = presentation
+    presentation.prepare_nametag_layout(&runtime);
+    let tag_style_owned = presentation
         .mod_ui()
         .mod_actor_style()
-        .and_then(|style| style.nametags.as_ref());
+        .and_then(|style| style.nametags.as_ref())
+        .cloned();
+    let tag_style = tag_style_owned.as_ref();
     let show_counter_self = totem_style
         .as_ref()
         .is_some_and(|style| style.show_self && style.show_nametag)
@@ -453,13 +456,13 @@ pub(crate) fn prepare_ui_runtime(
                     && settings.value(SettingId::HideHud) != 0
                     && !menu_visible)
         })
-        .zip(
-            cameras
-                .single()
-                .ok()
-                .map(|(_, transform)| GlobalTransform::from(*transform)),
-        )
-        .map(|(stream, transform)| {
+        .zip(cameras.single().ok().map(|(_, transform, projection)| {
+            (
+                GlobalTransform::from(*transform),
+                projection.get_clip_from_view(),
+            )
+        }))
+        .map(|(stream, (transform, clip_from_view))| {
             let authority = stream.authority();
             let viewer_position = local_frame
                 .snapshot()
@@ -476,6 +479,25 @@ pub(crate) fn prepare_ui_runtime(
                 camera_position: transform.translation(),
                 camera_forward: *transform.forward(),
             };
+            let clip_from_world = clip_from_view * transform.to_matrix().inverse();
+            let rotation = transform.rotation();
+            let mut admit = |tag: &mut nametags::NametagAnchor| {
+                tag.set_cinnabar_badge(
+                    authority
+                        .actor_player_roster_identity(tag.runtime_id())
+                        .is_some_and(|(xuid, uuid)| runtime.player_roster.has_badge(xuid, uuid)),
+                );
+                if totem_style.as_ref().is_some_and(|style| style.show_nametag)
+                    && let Some(actor) = authority.actor(tag.runtime_id())
+                    && let protocol::ActorKind::Player { uuid, .. } = &actor.kind
+                {
+                    tag.set_counter_annotation(
+                        runtime.player_roster.totem_annotation(uuid).cloned(),
+                    );
+                }
+
+                presentation.nametag_intersects_view(tag, clip_from_world, rotation)
+            };
             let mut tags = nametags::project_nametags(
                 &mut nametag_cache,
                 runtime.scoreboards(),
@@ -484,6 +506,7 @@ pub(crate) fn prepare_ui_runtime(
                 picked_nametag_actor(stream, &transform, collisions.as_deref(), &player_runtime),
                 actor_partial.0,
                 show_names && !tag_style.is_some_and(|style| style.hide_players),
+                &mut admit,
             );
             if tag_style.is_some_and(|style| style.hide_passengers) {
                 let authority = stream.authority();
@@ -508,7 +531,7 @@ pub(crate) fn prepare_ui_runtime(
                     && let Some(name) = authority
                         .actor_name_tag(actor.unique_id)
                         .or_else(|| authority.actor_display_name(actor.unique_id))
-                    && let Some(tag) = nametags::extract_nametag_at_feet(
+                    && let Some(mut tag) = nametags::extract_nametag_at_feet(
                         actor,
                         nametags::NametagView {
                             viewer_position: visibility.feet(),
@@ -519,25 +542,12 @@ pub(crate) fn prepare_ui_runtime(
                         runtime.scoreboards(),
                         visibility.feet(),
                     )
+                    && admit(&mut tag)
                 {
                     tags.push(tag);
                 }
             }
-            for tag in &mut tags {
-                tag.set_cinnabar_badge(
-                    authority
-                        .actor_player_roster_identity(tag.runtime_id())
-                        .is_some_and(|(xuid, uuid)| runtime.player_roster.has_badge(xuid, uuid)),
-                );
-                if totem_style.as_ref().is_some_and(|style| style.show_nametag)
-                    && let Some(actor) = authority.actor(tag.runtime_id())
-                    && let protocol::ActorKind::Player { uuid, .. } = &actor.kind
-                {
-                    tag.set_counter_annotation(
-                        runtime.player_roster.totem_annotation(uuid).cloned(),
-                    );
-                }
-            }
+
             tags
         })
         .unwrap_or_default();

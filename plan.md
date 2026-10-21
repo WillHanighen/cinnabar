@@ -506,6 +506,8 @@ launches. Native Windows startup, update and crash-restart acceptance remains in
   hardware-performance acceptance still require validation.
 - Enhanced rendering remains restricted until its GPU faults and freezes are resolved.
   Diagnostics or bounded fixtures do not establish safe general gameplay use.
+  Its MSAA nametag composite blends against resolved scene colour, so labels partly
+  occluded by world silhouettes get a dark edge fringe; per-sample composition is incomplete.
 - Java shader packs (Iris/OptiFine format) run behind the off-by-default `shaderpacks`
   feature. `shaderpack` loads packs, parses `shaders.properties`, options, Iris option
   menus, profiles and option files, evaluates custom uniforms and translates programs to

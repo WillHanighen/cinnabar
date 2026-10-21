@@ -44,6 +44,8 @@ pub(super) fn install_graph(world: &mut World) {
                 )
                 .in_set(NametagOverlay)
                 .after(Core3dSystems::PostProcess)
+                .after(crate::mod_render::ModPassLabel)
+                .after(crate::mod_render::ModCompositionLabel)
                 .before(crate::ui_render::UiOverlayLabel)
                 .before(crate::ui_render::overlay::UiOverlayPostLabel)
                 .before(bevy::core_pipeline::upscaling::upscaling),
@@ -59,7 +61,6 @@ pub(super) fn install_graph(world: &mut World) {
 pub(super) struct Overlay {
     layer: bevy::render::render_resource::Texture,
     view: TextureView,
-    multisampled: Option<(bevy::render::render_resource::Texture, TextureView)>,
     samples: u32,
     depth_source: TextureViewId,
     composite: wgpu::RenderPipeline,
@@ -99,7 +100,7 @@ pub(super) fn prepare(
             label: Some("nametag encoded overlay"),
             size: target.main_texture().size(),
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: msaa.samples(),
             dimension: TextureDimension::D2,
             format: render_scene::SCENE_COLOR_FORMAT.remove_srgb_suffix(),
             usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
@@ -107,16 +108,6 @@ pub(super) fn prepare(
         };
         let layer = device.create_texture(&descriptor);
         let view = layer.create_view(&default());
-        let multisampled = (msaa.samples() > 1).then(|| {
-            let texture = device.create_texture(&TextureDescriptor {
-                label: Some("nametag multisample overlay"),
-                sample_count: msaa.samples(),
-                usage: TextureUsages::RENDER_ATTACHMENT,
-                ..descriptor
-            });
-            let view = texture.create_view(&default());
-            (texture, view)
-        });
         let shader = device
             .wgpu_device()
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -137,7 +128,11 @@ pub(super) fn prepare(
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: Some("nametag_composite_fragment"),
+                        entry_point: Some(if msaa.samples() > 1 {
+                            "nametag_multisample_composite_fragment"
+                        } else {
+                            "nametag_composite_fragment"
+                        }),
                         compilation_options: default(),
                         targets: &[Some(wgpu::ColorTargetState {
                             format: target.main_texture_format(),
@@ -155,7 +150,6 @@ pub(super) fn prepare(
             layer,
             view,
             composite,
-            multisampled,
             samples: msaa.samples(),
             depth_source: crate::scene_sampling::view_depth(depth).id(),
             bindings: default(),
@@ -217,19 +211,12 @@ fn draw(
     };
     {
         let attachments = [Some(RenderPassColorAttachment {
-            view: overlay
-                .multisampled
-                .as_ref()
-                .map_or(&overlay.view, |(_, view)| view),
+            view: &overlay.view,
             depth_slice: None,
-            resolve_target: overlay.multisampled.as_ref().map(|_| &*overlay.view),
+            resolve_target: None,
             ops: Operations {
                 load: LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: if overlay.multisampled.is_some() {
-                    StoreOp::Discard
-                } else {
-                    StoreOp::Store
-                },
+                store: StoreOp::Store,
             },
         })];
         let mut pass = context.begin_tracked_render_pass(RenderPassDescriptor {
@@ -259,7 +246,7 @@ fn draw(
             layout: &overlay.composite.get_bind_group_layout(0),
             entries: &[
                 wgpu::BindGroupEntry {
-                    binding: 0,
+                    binding: if overlay.samples > 1 { 2 } else { 0 },
                     resource: wgpu::BindingResource::TextureView(&overlay.view),
                 },
                 wgpu::BindGroupEntry {
